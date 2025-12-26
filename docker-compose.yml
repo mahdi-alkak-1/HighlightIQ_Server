@@ -1,0 +1,16 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: highlightiq-mysql
+    environment:
+      MYSQL_DATABASE: highlightiq
+      MYSQL_USER: highlightiq
+      MYSQL_PASSWORD: highlightiq_pass
+      MYSQL_ROOT_PASSWORD: root_pass
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+volumes:
+  mysql_data:
