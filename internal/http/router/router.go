@@ -19,6 +19,7 @@ func New(authHandler *authhandlers.Handler) http.Handler {
 	if authHandler != nil {
 		r.Route("/auth", func(r chi.Router) {
 			r.Post("/register", authHandler.Register)
+			r.Post("/login", authHandler.Login)
 		})
 	}
 

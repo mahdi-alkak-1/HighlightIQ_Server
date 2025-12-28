@@ -6,14 +6,15 @@ import (
 	authsvc "highlightiq-server/internal/services/auth"
 )
 
-type RegisterService interface {
+type AuthService interface {
 	Register(ctx context.Context, in authsvc.RegisterInput) (authsvc.RegisterOutput, error)
+	Login(ctx context.Context, in authsvc.LoginInput) (authsvc.RegisterOutput, error)
 }
 
 type Handler struct {
-	svc RegisterService
+	svc AuthService
 }
 
-func New(svc RegisterService) *Handler {
+func New(svc AuthService) *Handler {
 	return &Handler{svc: svc}
 }

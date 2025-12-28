@@ -91,3 +91,35 @@ func (s *Service) signJWT(userUUID, email string) (string, error) {
 	t := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return t.SignedString(s.jwtSecret)
 }
+
+func (s *Service) Login(ctx context.Context, in LoginInput) (RegisterOutput, error) {
+	// 1) Find user by email
+	u, err := s.users.GetByEmail(ctx, in.Email)
+	if err != nil {
+		if errors.Is(err, users.ErrNotFound) {
+			return RegisterOutput{}, ErrInvalidCredentials
+		}
+		return RegisterOutput{}, err
+	}
+
+	// 2) Compare password
+	if err := bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(in.Password)); err != nil {
+		return RegisterOutput{}, ErrInvalidCredentials
+	}
+
+	// 3) Issue JWT (same signing as Register)
+	token, err := s.signJWT(u.UUID, u.Email)
+	if err != nil {
+		return RegisterOutput{}, err
+	}
+
+	return RegisterOutput{
+		User: UserDTO{
+			ID:    u.UUID,
+			Name:  u.Name,
+			Email: u.Email,
+		},
+		AccessToken: token,
+		TokenType:   "Bearer",
+	}, nil
+}
