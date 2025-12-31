@@ -1,7 +1,10 @@
 CREATE TABLE recordings (
   id INT NOT NULL AUTO_INCREMENT,
-  user_id INT NOT NULL,
 
+  uuid CHAR(36) NOT NULL,
+
+  user_id INT NOT NULL,
+    
   title VARCHAR(120) NOT NULL,
   original_filename VARCHAR(255) NOT NULL,
   storage_path VARCHAR(255) NOT NULL,
@@ -14,6 +17,8 @@ CREATE TABLE recordings (
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
   PRIMARY KEY (id),
+
+  UNIQUE KEY idx_recordings_uuid (uuid),
   KEY idx_recordings_user_id (user_id),
 
   CONSTRAINT fk_recordings_user
