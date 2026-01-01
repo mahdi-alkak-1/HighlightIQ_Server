@@ -1,0 +1,38 @@
+# -------------------------
+# Python (clipper)
+# -------------------------
+clipper/venv/
+clipper/.venv/
+clipper/__pycache__/
+clipper/**/*.pyc
+clipper/**/*.pyo
+clipper/*.egg-info/
+clipper/.pytest_cache/
+clipper/.mypy_cache/
+clipper/.ruff_cache/
+
+# -------------------------
+# Go
+# -------------------------
+bin/
+dist/
+tmp/
+*.exe
+*.test
+*.out
+coverage.out
+
+# -------------------------
+# Env / secrets
+# -------------------------
+.env
+.env.*
+!.env.example
+
+# -------------------------
+# OS / Editor
+# -------------------------
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
