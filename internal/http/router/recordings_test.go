@@ -74,7 +74,7 @@ func fakeAuthMW(next http.Handler) http.Handler {
 
 func TestRecordingsList(t *testing.T) {
 	recHandler := recordinghandlers.New(fakeRecordingsService{})
-	h := New(nil, recHandler, fakeAuthMW)
+	h := New(nil, recHandler, nil, fakeAuthMW)
 
 	req := httptest.NewRequest(http.MethodGet, "/recordings", nil)
 	rr := httptest.NewRecorder()
@@ -96,7 +96,7 @@ func TestRecordingsList(t *testing.T) {
 
 func TestRecordingsUpdateTitle(t *testing.T) {
 	recHandler := recordinghandlers.New(fakeRecordingsService{})
-	h := New(nil, recHandler, fakeAuthMW)
+	h := New(nil, recHandler, nil, fakeAuthMW)
 
 	req := testutils.JSONRequest(http.MethodPatch, "/recordings/rec-uuid-1", map[string]any{
 		"title": "new title",

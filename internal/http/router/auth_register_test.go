@@ -28,7 +28,7 @@ func (fakeAuthService) Register(ctx context.Context, in authsvc.RegisterInput) (
 
 func TestAuthRegister(t *testing.T) {
 	authHandler := authhandlers.New(fakeAuthService{})
-	h := New(authHandler, nil, nil)
+	h := New(authHandler, nil, nil, nil)
 
 	req := testutils.JSONRequest(http.MethodPost, "/auth/register", map[string]any{
 		"name":     "Housam",

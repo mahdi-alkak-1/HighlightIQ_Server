@@ -43,8 +43,8 @@ func main() {
 	// middleware
 	jwtAuth := middleware.NewJWTAuth(usersRepo, cfg.JWTSecret)
 
-	// router
-	r := router.New(authHandler, recHandler, jwtAuth.Middleware)
+	// router (3rd arg = clipCandidatesHandler for now)
+	r := router.New(authHandler, recHandler, nil, jwtAuth.Middleware)
 
 	log.Println("API listening on :8080")
 	if err := http.ListenAndServe(":8080", r); err != nil {
