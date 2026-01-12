@@ -72,9 +72,13 @@ func fakeAuthMW(next http.Handler) http.Handler {
 	})
 }
 
+type listRecordingsResponse struct {
+	Data []recRepo.Recording `json:"data"`
+}
+
 func TestRecordingsList(t *testing.T) {
 	recHandler := recordinghandlers.New(fakeRecordingsService{})
-	h := New(nil, recHandler, nil, fakeAuthMW)
+	h := New(nil, recHandler, nil, nil, fakeAuthMW)
 
 	req := httptest.NewRequest(http.MethodGet, "/recordings", nil)
 	rr := httptest.NewRecorder()
@@ -84,22 +88,26 @@ func TestRecordingsList(t *testing.T) {
 		t.Fatalf("expected status %d, got %d; body=%s", http.StatusOK, rr.Code, rr.Body.String())
 	}
 
-	var resp map[string]any
+	var resp listRecordingsResponse
 	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("response is not valid JSON: %v", err)
 	}
 
-	if resp["data"] == nil {
-		t.Fatalf("expected data in response")
+	if len(resp.Data) == 0 {
+		t.Fatalf("expected non-empty data in response")
 	}
+}
+
+type updateTitlePayload struct {
+	Title string `json:"title"`
 }
 
 func TestRecordingsUpdateTitle(t *testing.T) {
 	recHandler := recordinghandlers.New(fakeRecordingsService{})
-	h := New(nil, recHandler, nil, fakeAuthMW)
+	h := New(nil, recHandler, nil, nil, fakeAuthMW) // ✅ fixed: added clipsHandler=nil
 
-	req := testutils.JSONRequest(http.MethodPatch, "/recordings/rec-uuid-1", map[string]any{
-		"title": "new title",
+	req := testutils.JSONRequest(http.MethodPatch, "/recordings/rec-uuid-1", updateTitlePayload{
+		Title: "new title",
 	})
 
 	rr := httptest.NewRecorder()

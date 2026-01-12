@@ -27,12 +27,30 @@ func New(recordings *recordingsrepo.Repo, candidates *candidatesrepo.Repo, clipp
 }
 
 type DetectInput struct {
-	RecordingUUID     string
-	ClipLengthSeconds int
-	Threshold         float64
-	MinClipSeconds    int
+	RecordingUUID string
+
+	// clip rules
+	MaxClipSeconds  int
+	PreRollSeconds  int
+	PostRollSeconds int
+	MinClipSeconds  int
+
+	// scan speed/quality
+	SampleFPS float64
+
+	// picking rules
 	MaxCandidates     int
-	MinSpacingSeconds int // avoid many near-duplicates
+	MinSpacingSeconds float64
+
+	// merge kills close to each other into same clip
+	MergeGapSeconds int
+
+	ElimMatchThreshold float64
+	MinConsecutiveHits int
+	CooldownSeconds    float64
+
+	// Optional tuning (if you want to expose them later)
+	// CooldownSeconds is now exposed above
 }
 
 func (s *Service) DetectAndStore(ctx context.Context, userID int64, in DetectInput) (int64, error) {
@@ -45,28 +63,65 @@ func (s *Service) DetectAndStore(ctx context.Context, userID int64, in DetectInp
 		return 0, ErrNotFound
 	}
 
-	// defaults
-	if in.ClipLengthSeconds <= 0 {
-		in.ClipLengthSeconds = 30
+	// ---- defaults (match python defaults) ----
+	if in.MaxClipSeconds <= 0 {
+		in.MaxClipSeconds = 60
 	}
-	if in.Threshold <= 0 {
-		in.Threshold = 27
+	if in.PreRollSeconds < 0 {
+		in.PreRollSeconds = 0
+	}
+	if in.PreRollSeconds == 0 {
+		in.PreRollSeconds = 5
+	}
+	if in.PostRollSeconds < 0 {
+		in.PostRollSeconds = 0
+	}
+	if in.PostRollSeconds == 0 {
+		in.PostRollSeconds = 3
 	}
 	if in.MinClipSeconds <= 0 {
-		in.MinClipSeconds = 10
+		in.MinClipSeconds = 8
 	}
+
+	// scanning: banner detector likes ~60 fps
+	if in.SampleFPS <= 0 {
+		in.SampleFPS = 60.0
+	}
+
 	if in.MaxCandidates <= 0 {
 		in.MaxCandidates = 20
 	}
-	if in.MinSpacingSeconds <= 0 {
-		in.MinSpacingSeconds = 8
+
+	// This is for spacing candidates after scoring; keep smaller so we don't throw away real multi-kill clips.
+	if in.MinSpacingSeconds < 0 {
+		in.MinSpacingSeconds = 0
+	}
+	if in.MinSpacingSeconds == 0 {
+		in.MinSpacingSeconds = 2
 	}
 
-	resp, err := s.clipper.DetectCandidates(ctx, clipper.DetectRequest{
-		Path:              rec.StoragePath,
-		ClipLengthSeconds: in.ClipLengthSeconds,
-		Threshold:         in.Threshold,
-		MinClipSeconds:    in.MinClipSeconds,
+	if in.MergeGapSeconds < 0 {
+		in.MergeGapSeconds = 0
+	}
+	if in.MergeGapSeconds == 0 {
+		in.MergeGapSeconds = 0
+	}
+
+	if in.CooldownSeconds <= 0 {
+		in.CooldownSeconds = 1.2
+	}
+	resp, err := s.clipper.DetectKills(ctx, clipper.DetectKillsRequest{
+		Path:               rec.StoragePath,
+		MaxClipSeconds:     in.MaxClipSeconds,
+		PreRollSeconds:     in.PreRollSeconds,
+		PostRollSeconds:    in.PostRollSeconds,
+		MinClipSeconds:     in.MinClipSeconds,
+		SampleFPS:          in.SampleFPS,
+		MinSpacingSeconds:  in.MinSpacingSeconds,
+		MergeGapSeconds:    in.MergeGapSeconds,
+		ElimMatchThreshold: in.ElimMatchThreshold,
+		MinConsecutiveHits: in.MinConsecutiveHits,
+		CooldownSeconds:    in.CooldownSeconds,
 	})
 	if err != nil {
 		return 0, err
@@ -81,7 +136,7 @@ func (s *Service) DetectAndStore(ctx context.Context, userID int64, in DetectInp
 	})
 
 	// spacing filter + cap
-	minSpacingMS := in.MinSpacingSeconds * 1000
+	minSpacingMS := int(in.MinSpacingSeconds * 1000)
 	var picked []clipper.Candidate
 	for _, c := range resp.Candidates {
 		ok := true

@@ -5,6 +5,7 @@ import (
 
 	authhandlers "highlightiq-server/internal/http/handlers/auth"
 	clipcandhandlers "highlightiq-server/internal/http/handlers/clipcandidates"
+	clipshandlers "highlightiq-server/internal/http/handlers/clips"
 	recordinghandlers "highlightiq-server/internal/http/handlers/recordings"
 
 	"github.com/go-chi/chi/v5"
@@ -14,6 +15,7 @@ func New(
 	authHandler *authhandlers.Handler,
 	recordingsHandler *recordinghandlers.Handler,
 	clipCandidatesHandler *clipcandhandlers.Handler,
+	clipsHandler *clipshandlers.Handler,
 	authMiddleware func(http.Handler) http.Handler,
 ) http.Handler {
 	r := chi.NewRouter()
@@ -58,11 +60,26 @@ func New(
 				})
 			}
 
-			// Candidate actions by id (approve/reject/delete)
+			// Candidate actions by id
 			if clipCandidatesHandler != nil {
 				pr.Route("/clip-candidates/{id}", func(cr chi.Router) {
 					cr.Patch("/", clipCandidatesHandler.UpdateStatus)
 					cr.Delete("/", clipCandidatesHandler.Delete)
+				})
+			}
+
+			// Clips CRUD + export
+			if clipsHandler != nil {
+				pr.Route("/clips", func(cr chi.Router) {
+					cr.Post("/", clipsHandler.Create)
+					cr.Get("/", clipsHandler.List)
+
+					cr.Route("/{id}", func(r3 chi.Router) {
+						r3.Get("/", clipsHandler.Get)
+						r3.Patch("/", clipsHandler.Update)
+						r3.Delete("/", clipsHandler.Delete)
+						r3.Post("/export", clipsHandler.Export)
+					})
 				})
 			}
 		})

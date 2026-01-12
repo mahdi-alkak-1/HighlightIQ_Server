@@ -1,3 +1,4 @@
+// cmd/api/main.go
 package main
 
 import (
@@ -9,6 +10,7 @@ import (
 
 	authhandlers "highlightiq-server/internal/http/handlers/auth"
 	clipcandhandlers "highlightiq-server/internal/http/handlers/clipcandidates"
+	clipshandlers "highlightiq-server/internal/http/handlers/clips"
 	recordinghandlers "highlightiq-server/internal/http/handlers/recordings"
 	"highlightiq-server/internal/http/middleware"
 	"highlightiq-server/internal/http/router"
@@ -16,11 +18,13 @@ import (
 	"highlightiq-server/internal/integrations/clipper"
 
 	clipcandidatesrepo "highlightiq-server/internal/repos/clipcandidates"
+	clipsrepo "highlightiq-server/internal/repos/clips"
 	recordingrepo "highlightiq-server/internal/repos/recordings"
 	"highlightiq-server/internal/repos/users"
 
 	authsvc "highlightiq-server/internal/services/auth"
 	clipcandidatessvc "highlightiq-server/internal/services/clipcandidates"
+	clipssvc "highlightiq-server/internal/services/clips"
 	recordingsvc "highlightiq-server/internal/services/recordings"
 )
 
@@ -36,28 +40,30 @@ func main() {
 	// repos
 	usersRepo := users.New(conn)
 	recRepo := recordingrepo.New(conn)
-	clipRepo := clipcandidatesrepo.New(conn)
+	clipCandidatesRepo := clipcandidatesrepo.New(conn)
+	clipsRepo := clipsrepo.New(conn)
 
 	// services
 	authService := authsvc.New(usersRepo, cfg.JWTSecret)
 	recService := recordingsvc.New(recRepo, cfg.RecordingsDir)
 
-	// IMPORTANT: this MUST point to your python FastAPI service
-	// that exposes POST http://127.0.0.1:8090/detect-candidates
 	clipperClient := clipper.New("http://127.0.0.1:8090")
+	clipCandidatesService := clipcandidatessvc.New(recRepo, clipCandidatesRepo, clipperClient)
 
-	clipService := clipcandidatessvc.New(recRepo, clipRepo, clipperClient)
+	// Store clips in D:\clips
+	clipsService := clipssvc.New(clipsRepo, recRepo, `D:\clips`)
 
 	// handlers
 	authHandler := authhandlers.New(authService)
 	recHandler := recordinghandlers.New(recService)
-	clipHandler := clipcandhandlers.New(clipService)
+	clipHandler := clipcandhandlers.New(clipCandidatesService)
+	clipsHandler := clipshandlers.New(clipsService)
 
 	// middleware
 	jwtAuth := middleware.NewJWTAuth(usersRepo, cfg.JWTSecret)
 
-	// router (NOW clip handler is wired)
-	r := router.New(authHandler, recHandler, clipHandler, jwtAuth.Middleware)
+	// router
+	r := router.New(authHandler, recHandler, clipHandler, clipsHandler, jwtAuth.Middleware)
 
 	log.Println("API listening on :8080")
 	if err := http.ListenAndServe(":8080", r); err != nil {

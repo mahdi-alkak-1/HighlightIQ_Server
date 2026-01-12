@@ -26,7 +26,7 @@ func (fakeAuthService) Login(ctx context.Context, in authsvc.LoginInput) (authsv
 
 func TestAuthLogin(t *testing.T) {
 	authHandler := authhandlers.New(fakeAuthService{})
-	h := New(authHandler, nil, nil, nil)
+	h := New(authHandler, nil, nil, nil, nil)
 
 	req := testutils.JSONRequest(http.MethodPost, "/auth/login", map[string]any{
 		"email":    "housam@test.com",

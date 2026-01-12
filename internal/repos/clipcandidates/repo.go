@@ -3,7 +3,10 @@ package clipcandidates
 import (
 	"context"
 	"database/sql"
+	"errors"
 )
+
+var ErrNotFound = errors.New("clipcandidates: not found")
 
 type Repo struct {
 	db *sql.DB
@@ -78,7 +81,10 @@ func (r *Repo) ListByRecordingID(ctx context.Context, recordingID int64) ([]Cand
 		}
 		out = append(out, c)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (r *Repo) UpdateStatus(ctx context.Context, id int64, status string) error {
@@ -88,12 +94,60 @@ func (r *Repo) UpdateStatus(ctx context.Context, id int64, status string) error 
 		WHERE id = ?
 		LIMIT 1
 	`
-	_, err := r.db.ExecContext(ctx, q, status, id)
-	return err
+	res, err := r.db.ExecContext(ctx, q, status, id)
+	if err != nil {
+		return err
+	}
+	aff, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if aff == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 func (r *Repo) Delete(ctx context.Context, id int64) error {
 	const q = `DELETE FROM clip_candidates WHERE id = ? LIMIT 1`
-	_, err := r.db.ExecContext(ctx, q, id)
-	return err
+	res, err := r.db.ExecContext(ctx, q, id)
+	if err != nil {
+		return err
+	}
+	aff, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if aff == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (r *Repo) GetByIDForUser(ctx context.Context, userID int64, id int64) (Candidate, error) {
+	const q = `
+		SELECT c.id, c.recording_id, c.start_ms, c.end_ms, c.score, c.detected_signals, c.status, c.created_at, c.updated_at
+		FROM clip_candidates c
+		JOIN recordings r ON r.id = c.recording_id
+		WHERE c.id = ? AND r.user_id = ?
+		LIMIT 1
+	`
+
+	var c Candidate
+	var detected sql.NullString
+	err := r.db.QueryRowContext(ctx, q, id, userID).Scan(
+		&c.ID, &c.RecordingID, &c.StartMS, &c.EndMS, &c.Score, &detected, &c.Status, &c.CreatedAt, &c.UpdatedAt,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Candidate{}, ErrNotFound
+	}
+	if err != nil {
+		return Candidate{}, err
+	}
+
+	if detected.Valid {
+		s := detected.String
+		c.DetectedJSON = &s
+	}
+	return c, nil
 }

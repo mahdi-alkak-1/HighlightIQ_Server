@@ -157,3 +157,18 @@ func (r *Repo) DeleteByUUIDForUser(ctx context.Context, userID int64, recUUID st
 	}
 	return path, nil
 }
+
+func (r *Repo) GetStoragePathByIDForUser(ctx context.Context, userID int64, recordingID int64) (string, error) {
+	const q = `
+		SELECT storage_path
+		FROM recordings
+		WHERE user_id = ? AND id = ?
+		LIMIT 1
+	`
+	var path string
+	err := r.db.QueryRowContext(ctx, q, userID, recordingID).Scan(&path)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", ErrNotFound
+	}
+	return path, err
+}

@@ -1,81 +1,87 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from scenedetect import detect, ContentDetector
 import os
+import cv2
+
+from clipper.killbanner_detector import detect_banner_events
+from clipper.clip_merger import build_merged_clips
+from clipper.video_utils import get_video_end_seconds
 
 app = FastAPI()
 
-class DetectRequest(BaseModel):
+
+class DetectKillsRequest(BaseModel):
     path: str
-    clip_length_seconds: int = 30
-    threshold: float = 27.0
-    min_clip_seconds: int = 10  # avoid tiny segments
+
+    max_clip_seconds: int = 60
+    pre_roll_seconds: int = 5
+    post_roll_seconds: int = 3
+    min_clip_seconds: int = 8
+
+    sample_fps: float = 60.0
+    min_spacing_seconds: float = 1.2
+    max_candidates: int = 20
+
+    merge_gap_seconds: float = 0.0
+    
+    # Banner detector tuning (fixed ROI for 720p)
+    roi_mode: str = "manual"
+    elim_match_threshold: float = 0.4      # higher = fewer false positives
+    min_consecutive_hits: int = 3          # require consecutive frames to confirm
+
+    # ROI for 1280x720 Fortnite banner crop
+    roi_x: int = 592
+    roi_y: int = 535
+    roi_w: int = 98
+    roi_h: int = 19
+
+    cooldown_seconds: float = 1.2
+
 
 class Candidate(BaseModel):
     start_ms: int
     end_ms: int
     score: float
 
-class DetectResponse(BaseModel):
+
+class DetectKillsResponse(BaseModel):
     candidates: list[Candidate]
     video_end_seconds: float
-    scenes_detected: int
+    kills_detected: int
 
-@app.post("/detect-candidates", response_model=DetectResponse)
-def detect_candidates(req: DetectRequest):
+
+@app.post("/detect-kills", response_model=DetectKillsResponse)
+def detect_kills(req: DetectKillsRequest):
     if not os.path.isfile(req.path):
         raise HTTPException(status_code=404, detail="file not found")
 
-    if req.clip_length_seconds <= 0:
-        raise HTTPException(status_code=400, detail="clip_length_seconds must be > 0")
+    cap = cv2.VideoCapture(req.path)
+    if not cap.isOpened():
+        raise HTTPException(status_code=400, detail="cannot open video")
 
-    # PySceneDetect high-level API: returns list of (start_timecode, end_timecode) pairs. :contentReference[oaicite:2]{index=2}
-    scene_list = detect(req.path, ContentDetector(threshold=req.threshold))
+    video_end_s = get_video_end_seconds(cap)
 
-    if not scene_list:
-        # If no scenes detected, fallback to a single candidate from 0..clip_length (or to end)
-        # We’ll treat video_end as clip_length in this fallback.
-        end_s = float(req.clip_length_seconds)
-        return DetectResponse(
-            candidates=[Candidate(start_ms=0, end_ms=int(end_s * 1000), score=0.1)],
-            video_end_seconds=end_s,
-            scenes_detected=0,
-        )
+    banner_events = detect_banner_events(req.path, req, cap, return_diagnostics=False)
+    cap.release()
 
-    # Video end = end time of last scene
-    last_end_tc = scene_list[-1][1]
-    video_end_s = float(last_end_tc.get_seconds())
+    # Banner-only detection
+    raw_events = list(banner_events)
+    
+    # Apply spacing filter to deduplicate nearby events
+    if raw_events:
+        raw_events = sorted(raw_events)
+        spacing = float(req.min_spacing_seconds)
+        spaced = []
+        for t in raw_events:
+            if not spaced or (t - spaced[-1]) >= spacing:
+                spaced.append(t)
+        raw_events = spaced
 
-    candidates: list[Candidate] = []
-    used_starts = set()
+    candidates_dicts = build_merged_clips(raw_events, req, video_end_s)
+    candidates = [Candidate(**c) for c in candidates_dicts]
 
-    for (start_tc, _end_tc) in scene_list:
-        start_s = float(start_tc.get_seconds())
-        # candidate = 30s window starting at scene start
-        end_s = min(start_s + req.clip_length_seconds, video_end_s)
-
-        if end_s - start_s < req.min_clip_seconds:
-            continue
-
-        # de-dupe very close start times (ms-level)
-        start_ms = int(start_s * 1000)
-        if start_ms in used_starts:
-            continue
-        used_starts.add(start_ms)
-
-        candidates.append(Candidate(
-            start_ms=start_ms,
-            end_ms=int(end_s * 1000),
-            score=1.0,  # placeholder scoring for now
-        ))
-
-    # If still empty, fallback to a first 30s chunk
-    if not candidates:
-        end_s = min(float(req.clip_length_seconds), video_end_s)
-        candidates = [Candidate(start_ms=0, end_ms=int(end_s * 1000), score=0.1)]
-
-    return DetectResponse(
+    return DetectKillsResponse(
         candidates=candidates,
         video_end_seconds=video_end_s,
-        scenes_detected=len(scene_list),
+        kills_detected=len(raw_events),
     )
