@@ -12,6 +12,7 @@ import (
 	clipcandhandlers "highlightiq-server/internal/http/handlers/clipcandidates"
 	clipshandlers "highlightiq-server/internal/http/handlers/clips"
 	recordinghandlers "highlightiq-server/internal/http/handlers/recordings"
+	yphandlers "highlightiq-server/internal/http/handlers/youtubepublishes"
 	"highlightiq-server/internal/http/middleware"
 	"highlightiq-server/internal/http/router"
 
@@ -21,11 +22,13 @@ import (
 	clipsrepo "highlightiq-server/internal/repos/clips"
 	recordingrepo "highlightiq-server/internal/repos/recordings"
 	"highlightiq-server/internal/repos/users"
+	youtubePublishesRepo "highlightiq-server/internal/repos/youtubepublishes"
 
 	authsvc "highlightiq-server/internal/services/auth"
 	clipcandidatessvc "highlightiq-server/internal/services/clipcandidates"
 	clipssvc "highlightiq-server/internal/services/clips"
 	recordingsvc "highlightiq-server/internal/services/recordings"
+	ypsvc "highlightiq-server/internal/services/youtubepublishes"
 )
 
 func main() {
@@ -42,6 +45,7 @@ func main() {
 	recRepo := recordingrepo.New(conn)
 	clipCandidatesRepo := clipcandidatesrepo.New(conn)
 	clipsRepo := clipsrepo.New(conn)
+	ypRepo := youtubePublishesRepo.New(conn)
 
 	// services
 	authService := authsvc.New(usersRepo, cfg.JWTSecret)
@@ -55,18 +59,20 @@ func main() {
 		clipsDir = "/var/lib/highlightiq/clips"
 	}
 	clipsService := clipssvc.New(clipsRepo, recRepo, clipsDir)
+	youtubePublishesService := ypsvc.New(clipsRepo, ypRepo)
 
 	// handlers
 	authHandler := authhandlers.New(authService)
 	recHandler := recordinghandlers.New(recService)
 	clipHandler := clipcandhandlers.New(clipCandidatesService)
 	clipsHandler := clipshandlers.New(clipsService)
+	youtubePublishesHandler := yphandlers.New(youtubePublishesService, cfg.N8NWebhookSecret)
 
 	// middleware
 	jwtAuth := middleware.NewJWTAuth(usersRepo, cfg.JWTSecret)
 
 	// router
-	r := router.New(authHandler, recHandler, clipHandler, clipsHandler, jwtAuth.Middleware)
+	r := router.New(authHandler, recHandler, clipHandler, clipsHandler, youtubePublishesHandler, jwtAuth.Middleware)
 
 	log.Println("API listening on :8080")
 	if err := http.ListenAndServe(":8080", r); err != nil {

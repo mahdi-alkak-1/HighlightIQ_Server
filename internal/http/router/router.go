@@ -7,6 +7,7 @@ import (
 	clipcandhandlers "highlightiq-server/internal/http/handlers/clipcandidates"
 	clipshandlers "highlightiq-server/internal/http/handlers/clips"
 	recordinghandlers "highlightiq-server/internal/http/handlers/recordings"
+	yphandlers "highlightiq-server/internal/http/handlers/youtubepublishes"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -16,6 +17,7 @@ func New(
 	recordingsHandler *recordinghandlers.Handler,
 	clipCandidatesHandler *clipcandhandlers.Handler,
 	clipsHandler *clipshandlers.Handler,
+	youtubePublishesHandler *yphandlers.Handler,
 	authMiddleware func(http.Handler) http.Handler,
 ) http.Handler {
 	r := chi.NewRouter()
@@ -79,9 +81,29 @@ func New(
 						r3.Patch("/", clipsHandler.Update)
 						r3.Delete("/", clipsHandler.Delete)
 						r3.Post("/export", clipsHandler.Export)
+
+						if youtubePublishesHandler != nil {
+							r3.Route("/youtube-publishes", func(yr chi.Router) {
+								yr.Post("/", youtubePublishesHandler.Create)
+								yr.Get("/", youtubePublishesHandler.ListByClip)
+							})
+						}
 					})
 				})
 			}
+
+			if youtubePublishesHandler != nil {
+				pr.Route("/youtube-publishes/{id}", func(yr chi.Router) {
+					yr.Patch("/", youtubePublishesHandler.Update)
+				})
+			}
+		})
+	}
+
+	if youtubePublishesHandler != nil {
+		r.Route("/internal", func(ir chi.Router) {
+			ir.Post("/youtube-publishes", youtubePublishesHandler.InternalCreate)
+			ir.Post("/youtube-publishes/metrics", youtubePublishesHandler.InternalUpdateMetrics)
 		})
 	}
 
