@@ -4,10 +4,10 @@ package main
 import (
 	"log"
 	"net/http"
+	"os"
 
 	"highlightiq-server/internal/config"
 	"highlightiq-server/internal/db"
-
 	authhandlers "highlightiq-server/internal/http/handlers/auth"
 	clipcandhandlers "highlightiq-server/internal/http/handlers/clipcandidates"
 	clipshandlers "highlightiq-server/internal/http/handlers/clips"
@@ -50,8 +50,11 @@ func main() {
 	clipperClient := clipper.New("http://127.0.0.1:8090")
 	clipCandidatesService := clipcandidatessvc.New(recRepo, clipCandidatesRepo, clipperClient)
 
-	// Store clips in D:\clips
-	clipsService := clipssvc.New(clipsRepo, recRepo, `D:\clips`)
+	clipsDir := os.Getenv("CLIPS_DIR")
+	if clipsDir == "" {
+		clipsDir = "/var/lib/highlightiq/clips"
+	}
+	clipsService := clipssvc.New(clipsRepo, recRepo, clipsDir)
 
 	// handlers
 	authHandler := authhandlers.New(authService)
