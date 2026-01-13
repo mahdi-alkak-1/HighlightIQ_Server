@@ -36,3 +36,5 @@ coverage.out
 Thumbs.db
 .vscode/
 .idea/
+.github_deploy_key
+.github_deploy_key.pub
