@@ -28,6 +28,9 @@ coverage.out
 .env
 .env.*
 !.env.example
+highlightiq.env
+*.pem
+*.key
 
 # -------------------------
 # OS / Editor
@@ -36,5 +39,7 @@ coverage.out
 Thumbs.db
 .vscode/
 .idea/
+github_deploy_key
+github_deploy_key.pub
 .github_deploy_key
 .github_deploy_key.pub
