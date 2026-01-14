@@ -12,9 +12,13 @@ type MySQLConfig struct {
 }
 
 type Config struct {
-	MySQL         MySQLConfig
-	JWTSecret     string
-	RecordingsDir string
+	MySQL                 MySQLConfig
+	JWTSecret             string
+	RecordingsDir         string
+	N8NWebhookSecret      string
+	ClipsBaseURL          string
+	N8NPublishWebhookURL  string
+	N8NPublishWebhookAuth string
 }
 
 // Load reads configuration from environment variables with sane defaults.
@@ -27,8 +31,12 @@ func Load() Config {
 			User: getenv("DB_USER", "highlightiq"),
 			Pass: getenv("DB_PASS", "highlightiq_pass"),
 		},
-		JWTSecret:     getenv("JWT_SECRET", "dev-secret-change-me"),
-		RecordingsDir: getenv("RECORDINGS_DIR", "D:\\recordings"),
+		JWTSecret:             getenv("JWT_SECRET", "dev-secret-change-me"),
+		RecordingsDir:         getenv("RECORDINGS_DIR", "D:\\recordings"),
+		N8NWebhookSecret:      getenv("N8N_WEBHOOK_SECRET", ""),
+		ClipsBaseURL:          getenv("CLIPS_BASE_URL", ""),
+		N8NPublishWebhookURL:  getenv("N8N_PUBLISH_WEBHOOK_URL", ""),
+		N8NPublishWebhookAuth: getenv("N8N_PUBLISH_WEBHOOK_AUTH", ""),
 	}
 }
 

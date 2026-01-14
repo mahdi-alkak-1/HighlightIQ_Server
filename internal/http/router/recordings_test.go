@@ -78,7 +78,7 @@ type listRecordingsResponse struct {
 
 func TestRecordingsList(t *testing.T) {
 	recHandler := recordinghandlers.New(fakeRecordingsService{})
-	h := New(nil, recHandler, nil, nil, fakeAuthMW)
+	h := New(nil, recHandler, nil, nil, nil, fakeAuthMW)
 
 	req := httptest.NewRequest(http.MethodGet, "/recordings", nil)
 	rr := httptest.NewRecorder()
@@ -104,7 +104,7 @@ type updateTitlePayload struct {
 
 func TestRecordingsUpdateTitle(t *testing.T) {
 	recHandler := recordinghandlers.New(fakeRecordingsService{})
-	h := New(nil, recHandler, nil, nil, fakeAuthMW) // ✅ fixed: added clipsHandler=nil
+	h := New(nil, recHandler, nil, nil, nil, fakeAuthMW) // ✅ fixed: added clipsHandler=nil
 
 	req := testutils.JSONRequest(http.MethodPatch, "/recordings/rec-uuid-1", updateTitlePayload{
 		Title: "new title",

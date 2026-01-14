@@ -87,6 +87,46 @@ func (r *Repo) GetByIDForUser(ctx context.Context, userID int64, id int64) (Clip
 	return c, nil
 }
 
+func (r *Repo) GetByID(ctx context.Context, id int64) (Clip, error) {
+	const q = `
+		SELECT id, user_id, recording_id, candidate_id, title, caption, start_ms, end_ms, duration_seconds, status, export_path, created_at, updated_at
+		FROM clips
+		WHERE id = ?
+		LIMIT 1
+	`
+
+	var c Clip
+	var cand sql.NullInt64
+	var caption sql.NullString
+	var export sql.NullString
+
+	err := r.db.QueryRowContext(ctx, q, id).Scan(
+		&c.ID, &c.UserID, &c.RecordingID, &cand, &c.Title, &caption, &c.StartMS, &c.EndMS, &c.DurationSeconds,
+		&c.Status, &export, &c.CreatedAt, &c.UpdatedAt,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Clip{}, ErrNotFound
+	}
+	if err != nil {
+		return Clip{}, err
+	}
+
+	if cand.Valid {
+		v := cand.Int64
+		c.CandidateID = &v
+	}
+	if caption.Valid {
+		v := caption.String
+		c.Caption = &v
+	}
+	if export.Valid {
+		v := export.String
+		c.ExportPath = &v
+	}
+
+	return c, nil
+}
+
 func (r *Repo) ListByUser(ctx context.Context, userID int64, recordingID *int64) ([]Clip, error) {
 	var sb strings.Builder
 	sb.WriteString(`

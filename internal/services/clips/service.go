@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -17,20 +18,25 @@ import (
 
 var ErrNotFound = errors.New("clips: not found")
 var ErrBadInput = errors.New("clips: bad input")
+var ErrNotReady = errors.New("clips: not ready")
 
 type Service struct {
 	clipsRepo      *clipsrepo.Repo
 	recordingsRepo *recordingsrepo.Repo
 	clipsDir       string
 	ffmpegPath     string
+	notifier       PublishNotifier
+	clipsBaseURL   string
 }
 
-func New(clipsRepo *clipsrepo.Repo, recordingsRepo *recordingsrepo.Repo, clipsDir string) *Service {
+func New(clipsRepo *clipsrepo.Repo, recordingsRepo *recordingsrepo.Repo, clipsDir string, clipsBaseURL string, notifier PublishNotifier) *Service {
 	return &Service{
 		clipsRepo:      clipsRepo,
 		recordingsRepo: recordingsRepo,
 		clipsDir:       clipsDir,
 		ffmpegPath:     resolveFFmpegPath(),
+		notifier:       notifier,
+		clipsBaseURL:   clipsBaseURL,
 	}
 }
 
@@ -163,6 +169,22 @@ func (s *Service) Delete(ctx context.Context, userID int64, id int64) error {
 	return nil
 }
 
+func (s *Service) GetExport(ctx context.Context, userID int64, id int64) (string, string, error) {
+	c, err := s.clipsRepo.GetByIDForUser(ctx, userID, id)
+	if err != nil {
+		if errors.Is(err, clipsrepo.ErrNotFound) {
+			return "", "", ErrNotFound
+		}
+		return "", "", err
+	}
+
+	if c.ExportPath == nil || *c.ExportPath == "" {
+		return "", "", ErrNotReady
+	}
+
+	return *c.ExportPath, filepath.Base(*c.ExportPath), nil
+}
+
 // Export generates an mp4 file using ffmpeg and updates export_path + status.
 // NOTE: Set FFMPEG_PATH to either:
 //   - the directory containing ffmpeg.exe (Windows), OR
@@ -249,5 +271,24 @@ func (s *Service) Export(ctx context.Context, userID int64, id int64) (clipsrepo
 		return clipsrepo.Clip{}, err
 	}
 
+	if s.notifier != nil {
+		clipURL := s.buildClipURL(updated.ExportPath)
+		if err := s.notifier.NotifyClipExported(ctx, updated, clipURL); err != nil {
+			log.Printf("n8n notify failed for clip %d: %v", updated.ID, err)
+		}
+	}
+
 	return updated, nil
+}
+
+func (s *Service) buildClipURL(exportPath *string) string {
+	if exportPath == nil || *exportPath == "" {
+		return ""
+	}
+	if s.clipsBaseURL == "" {
+		return *exportPath
+	}
+
+	base := strings.TrimRight(s.clipsBaseURL, "/")
+	return base + "/" + filepath.Base(*exportPath)
 }

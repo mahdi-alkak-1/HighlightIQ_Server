@@ -1,0 +1,130 @@
+package youtubepublishes
+
+import (
+	"context"
+	"errors"
+
+	clipsrepo "highlightiq-server/internal/repos/clips"
+	yprepo "highlightiq-server/internal/repos/youtubepublishes"
+)
+
+var ErrNotFound = errors.New("youtubepublishes: not found")
+
+type Service struct {
+	clips *clipsrepo.Repo
+	repo  *yprepo.Repo
+}
+
+func New(clips *clipsrepo.Repo, repo *yprepo.Repo) *Service {
+	return &Service{
+		clips: clips,
+		repo:  repo,
+	}
+}
+
+func (s *Service) Create(ctx context.Context, userID int64, clipID int64, in CreateInput) (yprepo.YoutubePublish, error) {
+	if _, err := s.clips.GetByIDForUser(ctx, userID, clipID); err != nil {
+		if errors.Is(err, clipsrepo.ErrNotFound) {
+			return yprepo.YoutubePublish{}, ErrNotFound
+		}
+		return yprepo.YoutubePublish{}, err
+	}
+
+	created, err := s.repo.Create(ctx, yprepo.CreateParams{
+		ClipID:         clipID,
+		YoutubeVideoID: in.YoutubeVideoID,
+		YoutubeURL:     in.YoutubeURL,
+		Status:         in.Status,
+		PublishedAt:    in.PublishedAt,
+		LastSyncedAt:   in.LastSyncedAt,
+		Views:          in.Views,
+		Likes:          in.Likes,
+		Comments:       in.Comments,
+		Analytics:      in.Analytics,
+	})
+	if err != nil {
+		return yprepo.YoutubePublish{}, err
+	}
+
+	return created, nil
+}
+
+func (s *Service) CreateInternal(ctx context.Context, clipID int64, in CreateInput) (yprepo.YoutubePublish, error) {
+	if _, err := s.clips.GetByID(ctx, clipID); err != nil {
+		if errors.Is(err, clipsrepo.ErrNotFound) {
+			return yprepo.YoutubePublish{}, ErrNotFound
+		}
+		return yprepo.YoutubePublish{}, err
+	}
+
+	created, err := s.repo.Create(ctx, yprepo.CreateParams{
+		ClipID:         clipID,
+		YoutubeVideoID: in.YoutubeVideoID,
+		YoutubeURL:     in.YoutubeURL,
+		Status:         in.Status,
+		PublishedAt:    in.PublishedAt,
+		LastSyncedAt:   in.LastSyncedAt,
+		Views:          in.Views,
+		Likes:          in.Likes,
+		Comments:       in.Comments,
+		Analytics:      in.Analytics,
+	})
+	if err != nil {
+		return yprepo.YoutubePublish{}, err
+	}
+
+	return created, nil
+}
+
+func (s *Service) ListByClip(ctx context.Context, userID int64, clipID int64) ([]yprepo.YoutubePublish, error) {
+	if _, err := s.clips.GetByIDForUser(ctx, userID, clipID); err != nil {
+		if errors.Is(err, clipsrepo.ErrNotFound) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+
+	return s.repo.ListByClipIDForUser(ctx, userID, clipID)
+}
+
+func (s *Service) Update(ctx context.Context, userID int64, id int64, in UpdateInput) (yprepo.YoutubePublish, error) {
+	updated, err := s.repo.UpdateByIDForUser(ctx, userID, id, yprepo.UpdateParams{
+		YoutubeURL:   in.YoutubeURL,
+		Status:       in.Status,
+		PublishedAt:  in.PublishedAt,
+		LastSyncedAt: in.LastSyncedAt,
+		Views:        in.Views,
+		Likes:        in.Likes,
+		Comments:     in.Comments,
+		Analytics:    in.Analytics,
+	})
+	if err != nil {
+		if errors.Is(err, yprepo.ErrNotFound) {
+			return yprepo.YoutubePublish{}, ErrNotFound
+		}
+		return yprepo.YoutubePublish{}, err
+	}
+
+	return updated, nil
+}
+
+func (s *Service) UpdateByVideoID(ctx context.Context, youtubeVideoID string, in UpdateInput) (yprepo.YoutubePublish, error) {
+	updated, err := s.repo.UpdateByVideoID(ctx, youtubeVideoID, yprepo.UpdateParams{
+		YoutubeURL:   in.YoutubeURL,
+		Status:       in.Status,
+		PublishedAt:  in.PublishedAt,
+		LastSyncedAt: in.LastSyncedAt,
+		Views:        in.Views,
+		Likes:        in.Likes,
+		Comments:     in.Comments,
+		Analytics:    in.Analytics,
+	})
+	if err != nil {
+		if errors.Is(err, yprepo.ErrNotFound) {
+			return yprepo.YoutubePublish{}, ErrNotFound
+		}
+		return yprepo.YoutubePublish{}, err
+	}
+
+	return updated, nil
+}

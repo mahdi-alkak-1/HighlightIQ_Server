@@ -2,7 +2,10 @@ package clips
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
@@ -240,4 +243,58 @@ func (h *Handler) Export(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response.JSON(w, http.StatusOK, clip)
+}
+
+// GET /clips/{id}/download
+func (h *Handler) Download(w http.ResponseWriter, r *http.Request) {
+	u, ok := middleware.GetAuthUser(r.Context())
+	if !ok {
+		response.JSON(w, http.StatusUnauthorized, messageResponse{Message: "unauthorized"})
+		return
+	}
+
+	idStr := chi.URLParam(r, "id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		response.JSON(w, http.StatusBadRequest, messageResponse{Message: "invalid id"})
+		return
+	}
+
+	path, name, err := h.svc.GetExport(r.Context(), u.ID, id)
+	if err != nil {
+		if errors.Is(err, svc.ErrNotFound) {
+			response.JSON(w, http.StatusNotFound, messageResponse{Message: "not found"})
+			return
+		}
+		if errors.Is(err, svc.ErrNotReady) {
+			response.JSON(w, http.StatusConflict, messageResponse{Message: "export not ready"})
+			return
+		}
+		response.JSON(w, http.StatusInternalServerError, messageResponse{Message: "failed to download clip"})
+		return
+	}
+
+	f, err := os.Open(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			response.JSON(w, http.StatusNotFound, messageResponse{Message: "file not found"})
+			return
+		}
+		response.JSON(w, http.StatusInternalServerError, messageResponse{Message: "failed to open file"})
+		return
+	}
+	defer f.Close()
+
+	info, err := f.Stat()
+	if err != nil {
+		response.JSON(w, http.StatusInternalServerError, messageResponse{Message: "failed to stat file"})
+		return
+	}
+
+	if name == "" {
+		name = filepath.Base(path)
+	}
+
+	w.Header().Set("Content-Disposition", "attachment; filename=\""+name+"\"")
+	http.ServeContent(w, r, name, info.ModTime(), f)
 }
