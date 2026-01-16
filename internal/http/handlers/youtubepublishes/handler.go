@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -191,6 +192,92 @@ func (h *Handler) InternalCreate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response.JSON(w, http.StatusCreated, created)
+}
+
+// GET /internal/youtube-publishes
+func (h *Handler) InternalList(w http.ResponseWriter, r *http.Request) {
+	if !h.checkSecret(r) {
+		response.JSON(w, http.StatusUnauthorized, messageResponse{Message: "unauthorized"})
+		return
+	}
+
+	ids, err := h.svc.ListVideoIDs(r.Context())
+	if err != nil {
+		response.JSON(w, http.StatusInternalServerError, messageResponse{Message: "failed to list youtube video ids"})
+		return
+	}
+
+	type item struct {
+		YoutubeVideoID string `json:"youtube_video_id"`
+	}
+	out := make([]item, 0, len(ids))
+	for _, id := range ids {
+		out = append(out, item{YoutubeVideoID: id})
+	}
+
+	response.JSON(w, http.StatusOK, map[string]any{"data": out})
+}
+
+// GET /internal/youtube-publishes/{youtube_video_id}
+func (h *Handler) InternalGetByVideoID(w http.ResponseWriter, r *http.Request) {
+	if !h.checkSecret(r) {
+		response.JSON(w, http.StatusUnauthorized, messageResponse{Message: "unauthorized"})
+		return
+	}
+
+	videoID := chi.URLParam(r, "youtube_video_id")
+	if videoID == "" {
+		response.JSON(w, http.StatusBadRequest, messageResponse{Message: "invalid youtube video id"})
+		return
+	}
+
+	item, err := h.svc.GetByVideoID(r.Context(), videoID)
+	if err != nil {
+		if err == svc.ErrNotFound {
+			response.JSON(w, http.StatusNotFound, messageResponse{Message: "not found"})
+			return
+		}
+		response.JSON(w, http.StatusInternalServerError, messageResponse{Message: "failed to get youtube publish"})
+		return
+	}
+
+	response.JSON(w, http.StatusOK, item)
+}
+
+// POST /internal/youtube-publishes/mark-deleted
+func (h *Handler) InternalMarkDeleted(w http.ResponseWriter, r *http.Request) {
+	if !h.checkSecret(r) {
+		response.JSON(w, http.StatusUnauthorized, messageResponse{Message: "unauthorized"})
+		return
+	}
+
+	var req reqs.InternalMarkDeletedRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		response.JSON(w, http.StatusBadRequest, messageResponse{Message: "invalid JSON payload"})
+		return
+	}
+	if err := req.Validate(); err != nil {
+		response.JSON(w, http.StatusBadRequest, messageResponse{Message: "validation failed"})
+		return
+	}
+
+	ts := req.LastSyncedAt
+	if ts == nil {
+		now := time.Now().UTC()
+		ts = &now
+	}
+
+	updated, err := h.svc.MarkDeletedByVideoID(r.Context(), req.YoutubeVideoID, ts)
+	if err != nil {
+		if err == svc.ErrNotFound {
+			response.JSON(w, http.StatusNotFound, messageResponse{Message: "not found"})
+			return
+		}
+		response.JSON(w, http.StatusInternalServerError, messageResponse{Message: "failed to mark youtube publish deleted"})
+		return
+	}
+
+	response.JSON(w, http.StatusOK, updated)
 }
 
 // POST /internal/youtube-publishes/metrics

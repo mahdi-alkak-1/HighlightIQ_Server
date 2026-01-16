@@ -12,5 +12,29 @@ services:
     volumes:
       - mysql_data:/var/lib/mysql
 
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: n8n-local
+    ports:
+      - "5679:5678"
+    environment:
+      # n8n listens on 5678 inside the container
+      N8N_HOST: localhost
+      N8N_PORT: 5678
+      N8N_PROTOCOL: http
+
+      # IMPORTANT: external URL users (and Google OAuth) use
+      WEBHOOK_URL: http://localhost:5679/
+      N8N_EDITOR_BASE_URL: http://localhost:5679/
+
+      # (Optional but recommended)
+      N8N_DIAGNOSTICS_ENABLED: "false"
+
+      # timezone (optional)
+      TZ: Europe/Amsterdam
+    volumes:
+      - n8n_data:/home/node/.n8n
+
 volumes:
   mysql_data:
+  n8n_data:

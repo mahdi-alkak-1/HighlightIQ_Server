@@ -103,7 +103,10 @@ func New(
 
 	if youtubePublishesHandler != nil {
 		r.Route("/internal", func(ir chi.Router) {
+			ir.Get("/youtube-publishes", youtubePublishesHandler.InternalList)
+			ir.Get("/youtube-publishes/{youtube_video_id}", youtubePublishesHandler.InternalGetByVideoID)
 			ir.Post("/youtube-publishes", youtubePublishesHandler.InternalCreate)
+			ir.Post("/youtube-publishes/mark-deleted", youtubePublishesHandler.InternalMarkDeleted)
 			ir.Post("/youtube-publishes/metrics", youtubePublishesHandler.InternalUpdateMetrics)
 		})
 	}

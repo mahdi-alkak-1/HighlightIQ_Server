@@ -3,7 +3,6 @@ package youtubepublishes
 import (
 	"context"
 	"errors"
-	"time"
 
 	clipsrepo "highlightiq-server/internal/repos/clips"
 	yprepo "highlightiq-server/internal/repos/youtubepublishes"
@@ -90,34 +89,6 @@ func (s *Service) ListByClip(ctx context.Context, userID int64, clipID int64) ([
 
 func (s *Service) ListVideoIDs(ctx context.Context) ([]string, error) {
 	return s.repo.ListVideoIDs(ctx)
-}
-
-func (s *Service) GetByVideoID(ctx context.Context, youtubeVideoID string) (yprepo.YoutubePublish, error) {
-	yp, err := s.repo.GetByVideoID(ctx, youtubeVideoID)
-	if err != nil {
-		if errors.Is(err, yprepo.ErrNotFound) {
-			return yprepo.YoutubePublish{}, ErrNotFound
-		}
-		return yprepo.YoutubePublish{}, err
-	}
-
-	return yp, nil
-}
-
-func (s *Service) MarkDeletedByVideoID(ctx context.Context, youtubeVideoID string, lastSyncedAt *time.Time) (yprepo.YoutubePublish, error) {
-	status := "deleted"
-	updated, err := s.repo.UpdateByVideoID(ctx, youtubeVideoID, yprepo.UpdateParams{
-		Status:       &status,
-		LastSyncedAt: lastSyncedAt,
-	})
-	if err != nil {
-		if errors.Is(err, yprepo.ErrNotFound) {
-			return yprepo.YoutubePublish{}, ErrNotFound
-		}
-		return yprepo.YoutubePublish{}, err
-	}
-
-	return updated, nil
 }
 
 func (s *Service) Update(ctx context.Context, userID int64, id int64, in UpdateInput) (yprepo.YoutubePublish, error) {
